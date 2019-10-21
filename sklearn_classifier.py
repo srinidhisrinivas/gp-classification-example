@@ -19,9 +19,12 @@ import numpy as np
 
 import sys
 
-df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
+#df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
+df = pd.read_csv('haberman_data.txt', delimiter=',');
 
-train_x, test_x, train_y, test_y = train_test_split(df.values[:,0:4], df.values[:,4], train_size=0.8);
+num_features = len(df.columns)-1;
+
+train_x, test_x, train_y, test_y = train_test_split(df.values[:,0:num_features], df.values[:,num_features], train_size=0.8);
 names = ["Nearest Neighbors", "Linear SVM", "RBF SVM", "Gaussian Process",
          "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
          "Naive Bayes", "QDA"]

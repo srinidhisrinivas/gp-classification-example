@@ -23,12 +23,14 @@ assert pyro.__version__.startswith('0.4.1');
 pyro.enable_validation(True);
 pyro.set_rng_seed(0);
 
-df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
+#df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
+df = pd.read_csv('haberman_data.txt', delimiter=',');
 
 num_features = len(df.columns)-1;
 
 x_vals = torch.from_numpy(df.iloc[:,0:num_features].values).float();
 y_vals = torch.from_numpy(df.iloc[:,num_features].values).float().reshape(-1,1);
+
 
 train_size = 0.8;
 Xu_size=50;
