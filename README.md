@@ -1,2 +1,2 @@
 # gp-classification-example
-Using Gaussian Processes in Pyro to perform classification using simulated data and online datasets
+Using Gaussian Processes in Pyro and GPyTorch to perform classification using simulated data and online datasets
