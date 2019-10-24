@@ -76,19 +76,16 @@ train_x, train_y = data[train_indices];
 test_x, test_y = data[test_indices];
 #test_x = torch.cat((test_x[0].reshape(-1,1), test_x[1].reshape(-1,1)), dim=1)
 plt.scatter(train_x.numpy(), train_y.numpy());
-#plt.show(block=False);
+plt.show(block=False);
 
-kernel = gp.kernels.RBF(input_dim=1, variance=torch.tensor(5.), lengthscale=torch.tensor(5.));
+kernel = gp.kernels.RBF(input_dim=1)#, variance=torch.tensor(5.), lengthscale=torch.tensor(5.));
 likelihood = gp.likelihoods.Binary();
 loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
 
-#X = torch.cat((torch.linspace(0., 100., 500).reshape(-1,1), torch.linspace(0., 100., 500).reshape(-1,1)),dim=1) 
 X = torch.linspace(0., 100., 500);
-Xu = torch.arange(0., 100., 10);
+Xu = torch.linspace(0., 100., 10);
 
-    #likelihood.train()
 gpr = gp.models.VariationalSparseGP(train_x, train_y, kernel, Xu=Xu, likelihood=likelihood)
-#gpr = gp.models.GPRegression(kernel, noise=torch.tensor([noise]))
 
 optimizer = torch.optim.Adam(gpr.parameters(), lr=0.005);
 
@@ -116,14 +113,15 @@ with torch.no_grad():
     print('Accuracy: {}%'.format(acc_pctg));
 
     Y, std = gpr.forward(X)
-    plt.plot(X, inv_logit(Y), label='GP Classifer');
+    plt.plot(X, inv_logit(Y), label='GP Classifier');
     plt.plot(X, inv_logit(-X+50), label='Original function');
-    #plt.figure();
-    #plot_gp(gpr, X);
+    plt.legend();
+    plt.figure();
+    plot_gp(gpr, X);
     #plt.plot(X, X-50, color='red')
 
+
 #plot_gp(gpr, , X_train=init_sample, Y_train=y_init);
-plt.legend();
 plt.show();
 
 

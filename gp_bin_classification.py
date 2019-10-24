@@ -23,69 +23,101 @@ assert pyro.__version__.startswith('0.4.1');
 pyro.enable_validation(True);
 pyro.set_rng_seed(0);
 
-#df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
-df = pd.read_csv('haberman_data.txt', delimiter=',');
-
-num_features = len(df.columns)-1;
-
-x_vals = torch.from_numpy(df.iloc[:,0:num_features].values).float();
-y_vals = torch.from_numpy(df.iloc[:,num_features].values).float().reshape(-1,1);
 
 
-train_size = 0.8;
-Xu_size=50;
-np.random.seed(4);
-data = torch.cat((x_vals, y_vals),dim=1);
+class GPClassifier:
+    def __init__(self, sparse=True):
+        self.likelihood = gp.likelihoods.Binary();
+        self.likelihood.train();
+        self.loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+        self.Xu_size=10;
+        self.sparse = sparse;
 
-indices = list(range(len(data)));
-shuffled_indices = np.random.shuffle(indices)
-split = int(math.floor(train_size * len(indices)));
-train_indices = indices[:split];
-test_indices = indices[split:];
+    def fit(self, X, y):
+        self.kernel = gp.kernels.RBF(input_dim=X.shape[1], variance=torch.tensor(1.), lengthscale=torch.tensor(1.));
 
-train_data = data[train_indices];
-train_x, train_y = train_data[:,0:num_features], train_data[:,num_features];
+        # Take inducing points at random from training set
 
-test_data = data[test_indices];
-test_x, test_y = test_data[:,0:num_features], test_data[:,num_features];
+        if self.sparse:
+            indices = list(range(len(X)));
+            shuffled_indices = np.random.shuffle(indices);
+            split = self.Xu_size if self.Xu_size < len(X) else len(X);
+            Xu = X[indices[:split]];
 
-kernel = gp.kernels.RBF(input_dim=x_vals.shape[1]);
-likelihood = gp.likelihoods.Binary();
-likelihood.train();
-loss_fn = pyro.infer.Trace_ELBO().differentiable_loss
+            self.gpr = gp.models.VariationalSparseGP(X, y, self.kernel, Xu=Xu, likelihood=self.likelihood)
+        else:
+            self.gpr = gp.models.VariationalGP(X, y, self.kernel, likelihood=self.likelihood)
 
-# Take inducing points at random from training set
-indices = list(range(len(train_x)));
-shuffled_indices = np.random.shuffle(indices);
-split = Xu_size;
-Xu = train_x[indices[:split]];
+        self.train();
 
-gpr = gp.models.VariationalSparseGP(train_x, train_y, kernel, Xu=Xu, likelihood=likelihood)
+    def train(self, num_steps=2500):
+        gp.util.train(self.gpr, num_steps=num_steps);
 
-optimizer = torch.optim.Adam(gpr.parameters(), lr=0.005);
+    def update_post(self, X, y):
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X).float();
 
-losses=[]
+        if not isinstance(y, torch.Tensor):
+            y = torch.tensor(y).float();
 
-"""
-num_steps = 2500 if not smoke_test else 2;
-for i in range(num_steps):
-    optimizer.zero_grad();
-    loss = loss_fn(gpr.model, gpr.guide)
-    loss.backward()
-    optimizer.step();
-    losses.append(loss.item())
-"""
-gp.util.train(gpr, num_steps=2500);
+        prev_X = self.gpr.X;
+        prev_y = self.gpr.y;
+        assert X.shape[1] == prev_X.shape[1], 'Input shape does not match'
 
-with torch.no_grad():
-    pred_f, pred_var = gpr.forward(test_x);
-    pred = gpr.likelihood(pred_f, pred_var);
+        new_X = torch.cat((prev_X, X), dim=0);
+        new_y = torch.cat((prev_y, y), dim=0);
 
-    #pred[pred > 0.5] = 1.;
-    #pred[pred < 0.5] = 0.;
-    #print(pred);
-    acc = pred - test_y;
-    
-    acc_pctg = (acc==0).sum() * 100./len(acc);
-    print('Accuracy: {0:0.3f}%'.format(acc_pctg));
+        gpr.set_data(new_X, new_y);
 
+        self.train();
+
+    def predict(self, X, y=None, acc=True):
+
+        if acc:
+            assert y is not None, 'Must supply prediction targets for accuracy'
+
+        with torch.no_grad():
+            pred_f, pred_var = self.gpr.forward(X);
+            pred = self.gpr.likelihood(pred_f, pred_var);
+
+            if acc: 
+                acc_ = pred - y;
+                acc_pctg = (acc_==0).sum() * 100./float(len(acc_));
+                
+                return pred, acc_pctg
+
+            else:
+                return pred;
+
+if __name__ == '__main__':
+    #df = pd.read_csv('data_banknote_authentication.txt', delimiter=',');
+    df = pd.read_csv('haberman_data.txt', delimiter=',');
+
+    num_features = len(df.columns)-1;
+
+    x_vals = torch.from_numpy(df.iloc[:,0:num_features].values).float();
+    y_vals = torch.from_numpy(df.iloc[:,num_features].values).float().reshape(-1,1);
+
+
+    train_size = 0.8;
+
+    np.random.seed(4);
+    data = torch.cat((x_vals, y_vals),dim=1);
+
+    indices = list(range(len(data)));
+    shuffled_indices = np.random.shuffle(indices)
+    split = int(math.floor(train_size * len(indices)));
+    train_indices = indices[:split];
+    test_indices = indices[split:];
+
+    train_data = data[train_indices];
+    train_x, train_y = train_data[:,0:num_features], train_data[:,num_features];
+
+    test_data = data[test_indices];
+    test_x, test_y = test_data[:,0:num_features], test_data[:,num_features];
+
+    gpc = GPClassifier();
+
+    gpc.fit(train_x, train_y);
+    pred, acc = gpc.predict(test_x, test_y, acc=True)
+    print('Accuracy: {0:0.3f}%'.format(acc));
