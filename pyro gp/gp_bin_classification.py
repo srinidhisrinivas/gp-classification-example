@@ -9,6 +9,7 @@ warnings.filterwarnings("error");
 
 import os 
 import sys
+import time
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
@@ -115,9 +116,19 @@ if __name__ == '__main__':
 
     test_data = data[test_indices];
     test_x, test_y = test_data[:,0:num_features], test_data[:,num_features];
+    
+    gpc = GPClassifier(False);
 
-    gpc = GPClassifier();
-
+    start = time.time()
     gpc.fit(train_x, train_y);
-    pred, acc = gpc.predict(test_x, test_y, acc=True)
+    end = time.time()
+
+    print('Fitting: {}s'.format(end-start));
+
+    start = time.time()
+    pred_labels, acc = gpc.predict(test_x, test_y, acc=True)
+    end = time.time()
+
+    print('Predicting: {}s'.format(end-start));
+
     print('Accuracy: {0:0.3f}%'.format(acc));
